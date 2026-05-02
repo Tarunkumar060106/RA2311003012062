@@ -628,3 +628,194 @@ By introducing a message queue and worker-based processing:
 
 ---
 
+# Stage 6 - Priority Inbox Implementation
+
+## Objective
+
+Implement a system to display the **top N most important unread notifications** based on:
+
+* **Priority (Type)** → Placement > Result > Event
+* **Recency (Timestamp)** → newer notifications are more important
+
+---
+
+## Approach
+
+Each notification is assigned a **score** combining:
+
+* Priority weight
+* Time decay (older notifications lose importance)
+
+### Priority Weights
+
+| Type      | Weight |
+| --------- | ------ |
+| Placement | 3      |
+| Result    | 2      |
+| Event     | 1      |
+
+---
+
+## Scoring Function
+
+```text
+score = (weight * 1000) - minutes_since_creation
+```
+
+### Explanation:
+
+* Higher priority → higher base score
+* Older notifications → reduced score
+
+---
+
+## Implementation
+
+### Step 1: Calculate Score
+
+```javascript
+function calculateScore(notification) {
+  const weights = {
+    Placement: 3,
+    Result: 2,
+    Event: 1,
+  };
+
+  const now = Date.now();
+  const minutesOld =
+    (now - new Date(notification.Timestamp).getTime()) / 60000;
+
+  const weight = weights[notification.Type] || 1;
+
+  return weight * 1000 - minutesOld;
+}
+```
+
+---
+
+### Step 2: Efficient Top N Selection (Min Heap)
+
+Instead of sorting all notifications, we use a **Min Heap of size N**.
+
+#### Algorithm:
+
+* Iterate through notifications
+* Compute score
+* Maintain heap of top N items
+* Replace smallest when a better candidate is found
+
+---
+
+### Step 3: Implementation
+
+```javascript
+function getTopNotifications(notifications, N = 10) {
+  const heap = [];
+
+  function push(item) {
+    heap.push(item);
+    heap.sort((a, b) => a.score - b.score);
+  }
+
+  function pop() {
+    heap.shift();
+  }
+
+  for (const n of notifications) {
+    const score = calculateScore(n);
+    const item = { ...n, score };
+
+    if (heap.length < N) {
+      push(item);
+    } else if (score > heap[0].score) {
+      pop();
+      push(item);
+    }
+  }
+
+  return heap.sort((a, b) => b.score - a.score);
+}
+```
+
+---
+
+## API Integration
+
+Notifications are fetched from:
+
+```text
+GET /evaluation-service/notifications
+```
+
+### Processing Flow:
+
+1. Fetch notifications using Authorization token
+2. Apply scoring function
+3. Extract top 10 notifications
+4. Return response
+
+---
+
+## Sample Output
+
+```json
+{
+  "total": 50,
+  "top": [
+    {
+      "ID": "abc123",
+      "Type": "Placement",
+      "Message": "Placement result announced",
+      "Timestamp": "2026-04-22 17:51:30",
+      "score": 2985
+    }
+  ]
+}
+```
+
+---
+
+## Performance Optimization
+
+| Approach     | Complexity |
+| ------------ | ---------- |
+| Full sorting | O(n log n) |
+| Min Heap     | O(n log k) |
+
+Where:
+
+* `n` = total notifications
+* `k` = number of top results (10)
+
+---
+
+## Real-Time Updates
+
+When a new notification arrives:
+
+* Compute score
+* Insert into heap
+* Maintain top N dynamically
+
+---
+
+## Enhancements
+
+* User-specific priority preferences
+* Dynamic weight adjustment
+* Machine learning-based ranking
+* Time-decay tuning for better UX
+
+---
+
+## Summary
+
+This system ensures:
+
+* Important notifications are prioritized
+* Recent notifications are favored
+* Efficient handling of large datasets
+* Scalable and production-ready design
+
+---
+
