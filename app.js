@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 
+const { getTopNotificationsHandler } = require("./notification_system/controller");
 const requestLogger = require("./logging_middleware/requestLogger");
 const { runScheduler } = require("./vehicle_maintenance_scheduler/scheduler");
 const Log = require("./logging_middleware/logger");
@@ -26,6 +27,8 @@ app.get("/schedule", async (req, res) => {
     res.status(500).json({ error: "Scheduler failed" });
   }
 });
+
+app.get("/notifications/top", getTopNotificationsHandler);
 
 const PORT = process.env.PORT || 3000;
 

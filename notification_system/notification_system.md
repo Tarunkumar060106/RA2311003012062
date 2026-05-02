@@ -507,3 +507,124 @@ To improve performance and scalability:
 
 ---
 
+# Stage 5  Reliable Notification System
+
+## Problem
+
+The current implementation sends notifications and emails synchronously:
+
+```javascript
+for (let id of student_ids) {
+  save_to_db(id, message);
+  send_email(id, message);
+}
+```
+
+### Issues:
+
+* Blocking operations slow down the system
+* Failure in email service stops execution
+* No retry mechanism → notifications may be lost
+
+---
+
+## Solution: Message Queue Architecture
+
+Introduce a message queue (e.g., RabbitMQ, Kafka, or Redis-based queue) to decouple notification processing.
+
+---
+
+## New Flow
+
+1. API receives request
+2. Notification is stored in database
+3. Job is pushed to queue
+4. Worker processes the job asynchronously
+
+---
+
+## API Layer
+
+```javascript
+function notify_all(student_ids, message) {
+  for (let id of student_ids) {
+    save_to_db(id, message);
+
+    queue.push({
+      type: "SEND_NOTIFICATION",
+      student_id: id,
+      message
+    });
+  }
+}
+```
+
+---
+
+## Worker Layer
+
+```javascript
+worker.process(async (job) => {
+  try {
+    await send_email(job.student_id, job.message);
+    await push_to_app(job.student_id, job.message);
+  } catch (err) {
+    retry(job);
+  }
+});
+```
+
+---
+
+## Retry Strategy
+
+* Use exponential backoff
+* Limit number of retries
+
+Example:
+
+* Retry 1 → after 1 second
+* Retry 2 → after 5 seconds
+* Retry 3 → after 30 seconds
+
+---
+
+## Dead Letter Queue
+
+If a job fails after maximum retries:
+
+* Move it to a dead letter queue
+* Allows debugging and manual handling
+
+---
+
+## Idempotency
+
+Ensure that duplicate jobs do not create duplicate notifications.
+
+Solution:
+
+* Use unique identifiers
+* Check before inserting into database
+
+---
+
+## Benefits
+
+* Non-blocking API calls
+* Improved system reliability
+* Automatic retry on failures
+* Scalable with multiple workers
+
+---
+
+## ✅ Summary
+
+By introducing a message queue and worker-based processing:
+
+* The system becomes fault-tolerant
+* Failures are handled gracefully
+* Notification delivery becomes reliable and scalable
+
+---
+
