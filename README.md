@@ -1,7 +1,7 @@
 # 🚀 Notification & Scheduling System
 
 A backend system that demonstrates **algorithmic optimization, scalable system design, and structured API development**.
-
+OUTPUTS -> output directory
 This project implements:
 
 * A vehicle maintenance scheduler using optimization techniques
