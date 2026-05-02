@@ -146,7 +146,7 @@ This design ensures:
 * Scalable and clean API structure using pagination for fetching
 
 
-# Stage 2 — Database Design and Scaling
+# Stage 2 - Database Design and Scaling
 
 ## Database Choice
 
@@ -290,4 +290,220 @@ This design ensures:
 
 ---
 
+# Stage 3 - Query Optimization and Analysis
+
+## Given Query
+
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt DESC;
+```
+
+---
+
+## Why is this query slow?
+
+### 1. Use of `SELECT *`
+
+* Retrieves unnecessary columns
+* Increases I/O overhead
+
+### 2. No LIMIT clause
+
+* Returns all unread notifications
+* Can be very large
+
+### 3. No indexing
+
+* Causes full table scan
+* Very slow for large datasets (millions of rows)
+
+### 4. Sorting overhead
+
+* `ORDER BY createdAt DESC` requires sorting
+* Expensive without index support
+
+---
+
+## Optimized Query
+
+```sql
+SELECT id, message, type, created_at
+FROM notifications
+WHERE student_id = 1042 AND is_read = false
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+---
+
+## Indexing Strategy
+
+```sql
+CREATE INDEX idx_notifications_user_unread
+ON notifications (student_id, is_read, created_at DESC);
+```
+
+### Benefits:
+
+* Eliminates full table scan
+* Avoids expensive sorting
+* Improves query performance significantly
+
+---
+
+## Should we index every column?
+
+No.
+
+### Reasons:
+
+* Slows down write operations
+* Increases memory usage
+* Not all indexes are useful
+
+Indexes should be created based on query patterns.
+
+---
+
+## Query Cost Comparison
+
+### Without index:
+
+* Time complexity ≈ O(N log N)
+* Full table scan + sorting
+
+### With index:
+
+* Time complexity ≈ O(log N + K)
+* Direct lookup using index
+
+---
+
+## Additional Requirement
+
+### Query: Students who received placement notifications in last 7 days
+
+```sql
+SELECT DISTINCT student_id
+FROM notifications
+WHERE type = 'Placement'
+AND created_at >= NOW() - INTERVAL '7 days';
+```
+
+---
+
+# Stage 4 - Performance Optimization and Scaling
+
+## Problem
+
+The database becomes overwhelmed due to frequent API requests for fetching notifications. This leads to increased latency and potential system failure under high load.
+
+---
+
+## Root Cause
+
+* High number of read requests from clients
+* Frequent polling for updates
+* Large dataset (millions of notifications)
+* No caching mechanism
+
+---
+
+## Solutions
+
+### 1. Caching using Redis
+
+Store frequently accessed data (e.g., unread notifications) in Redis.
+
+#### Flow:
+
+* Check Redis cache first
+* If data exists → return immediately
+* Else → fetch from DB and update cache
+
+#### Benefits:
+
+* Reduces database load
+* Faster response time
+
+---
+
+### 2. Pagination
+
+Limit the number of records returned per request.
+
+```sql
+LIMIT 20 OFFSET 0;
+```
+
+#### Benefits:
+
+* Reduces response size
+* Improves query performance
+
+---
+
+### 3. Replace Polling with WebSockets
+
+Instead of repeatedly calling the API:
+
+* Use WebSockets for real-time updates
+* Server pushes new notifications instantly
+
+#### Benefits:
+
+* Eliminates unnecessary API calls
+* Reduces backend load
+* Improves user experience
+
+---
+
+### 4. Read Replicas
+
+Introduce replica databases to handle read operations.
+
+#### Architecture:
+
+* Primary DB handles writes
+* Replica DB handles read queries
+
+#### Benefits:
+
+* Distributes load
+* Improves scalability
+
+---
+
+### 5. Batch Processing
+
+Update multiple records in a single query instead of individual updates.
+
+#### Example:
+
+```sql
+UPDATE notifications
+SET is_read = true
+WHERE student_id = 1042;
+```
+
+#### Benefits:
+
+* Reduces number of queries
+* Improves performance
+
+---
+
+## ✅ Summary
+
+To improve performance and scalability:
+
+* Use Redis for caching frequently accessed data
+* Implement pagination for efficient data retrieval
+* Replace polling with WebSockets for real-time updates
+* Use read replicas to distribute load
+* Batch database updates where possible
+
+---
 
